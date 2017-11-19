@@ -12,7 +12,7 @@
 #include <string>
 
 using namespace std;
-boost::mutex mutex1;
+boost::shared_mutex mutex1;
 
 typedef struct node
 {
@@ -132,6 +132,7 @@ void breakNode(node* head,int x,int y,int id){
 }
 
 void insert(node* head,int x,int y,int id){
+	boost::unique_lock<boost::shared_mutex> lock(mutex1);
 	//cout<<head->num <<" -"<<endl;
 	if(head->num >= k){
 
@@ -168,6 +169,8 @@ void insert(node* head,int x,int y,int id){
 }
 
 int query1(node* head,int x,int y){
+	boost::shared_lock<boost::shared_mutex> lock(mutex1);
+
 	if(head->left == NULL || head ->right == NULL)
 			return head->bucketNum;
 	if(head->flag == 0){
@@ -203,6 +206,7 @@ void addValidPoints(node* head,int x1,int y1,int x2,int y2)
 }
 
 void query2(node* head,int x1,int y1,int x2,int y2){
+	boost::shared_lock<boost::shared_mutex> lock(mutex1);
 	if(head->left == NULL || head ->right == NULL){
 		addValidPoints(head,x1,y1,x2,y2);
 	}
@@ -243,7 +247,7 @@ void query2(node* head,int x1,int y1,int x2,int y2){
 
 void increment_count(int seconds)
 {
-	boost::unique_lock<boost::mutex> lock(mutex1);
+	//boost::unique_lock<boost::mutex> lock(mutex1);
 	std::cout << "count+++++"<<seconds<< std::endl;
 }
 
@@ -282,6 +286,7 @@ int main()
 
 		}
 
+	std::vector<boost::shared_future<int> > pending_data;
 
 	int max_num;
 	node* head = new node();
@@ -301,7 +306,8 @@ int main()
 	while(fp>>i>>x>>y)
 	{
 		cout<<"inserting == "<<i<<" "<<x<<" "<<y<<endl;
-		insert(head,x,y,i);
+		ioService.post(boost::bind(&insert, head, x, y, i));
+		//insert(head,x,y,i);
 		id_point_pair[i]=make_pair(x,y);
 	}
 
@@ -329,14 +335,19 @@ int main()
 			cin>>id;
 			int x = id_point_pair[id].first;
 			int y = id_point_pair[id].second;
-			cout<<"Bucket num: "<<query1(head,x,y)<<endl;
+			ioService.post(boost::bind(&query1, head, x, y));
+			cout<<"Bucket num: dont know"<<endl;
+
+
+			//cout<<"Bucket num: "<<query1(head,x,y)<<endl;
 		}
 		else if(val==2)
 		{
 			cout<<"Enter the xmin,ymin and xmax,ymax in which you need to find the points:";
 			int xmin,ymin,xmax,ymax;
 			cin>>xmin>>ymin>>xmax>>ymax;
-			query2(head,xmin,ymin,xmax,ymax);
+			ioService.post(boost::bind(&query2, head, xmin, ymin,xmax,ymax));
+			//query2(head,xmin,ymin,xmax,ymax);
 			cout<<"Points included are:"<<endl;
 			for(int i=0;i<answer.size();i++)
 			{
@@ -352,63 +363,3 @@ int main()
 	return 0;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-int main3() {
-
-	boost::asio::io_service ioService;
-	boost::thread_group threads;
-	boost::asio::io_service::work work(ioService);
-	//ioService.post(&increment_count);
-
-	//auto worker = boost::bind(&boost::asio::io_service::run, &io_service);
-	//boost::thread* t1 = threads.create_thread(&increment_count);
-	//boost::thread* t2 = threads.create_thread(&increment_count);
-	//threads.add_thread(t2);
-
-	cout<<"HELLO"<<threads.size()<<endl;
-	for (int i = 0; i < boost::thread::hardware_concurrency() ; ++i)
-	{
-		threads.create_thread(boost::bind(static_cast<std::size_t(boost::asio::io_service::*)(void)>
-			(&boost::asio::io_service::run), &ioService));
-
-		/*threads.create_thread(&increment_count);
-		threads.add_thread(t);
-		cout<<"========"<<i<<"+++++++"<<threads.size()<<endl;
-		threads.join_all();*/
-
-	}
-	cout<<"HELLO"<<threads.size()<<endl;
-	/*
-	 *
-	 *
-	 * threads.create_thread(boost:bind(&functionPointer, arg1, arg2))
-	 * threads.create_thread(boost:bind(&Class:function, &object));
-	 *
-	 * threads.create_thread(boost::bind(&boost::asio::io_service::run, &io_service));
-		threads.create_thread(boost::bind(&boost::asio::io_service::run,
-			&io_service));*/
-	std::vector<boost::shared_future<int> > pending_data; // vector of futures
-
-//	sleep_print(2);
-
-	//boost::wait_for_all(pending_data.begin(), pending_data.end());
-
-	push_job(3, ioService, pending_data);
-	push_job(4, ioService, pending_data);
-	push_job(5, ioService, pending_data);
-	push_job(6, ioService, pending_data);
-	push_job(7, ioService, pending_data);
-	//boost::wait_for_all(pending_data.begin(), pending_data.end());
-	return 0;
-}
