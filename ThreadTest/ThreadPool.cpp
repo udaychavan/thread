@@ -168,26 +168,31 @@ void insert(node* head,int x,int y,int id){
 
 }
 
-int query1(node* head,int x,int y){
+int query1(node* head,int x,int y, void (*fun)(int)){
 	boost::shared_lock<boost::shared_mutex> lock(mutex1);
+	cout<<"+++++++++++"<<head->bucketNum<<endl;
+	if(head->left == NULL || head ->right == NULL){
+		cout<<"+++++++++++"<<head->bucketNum<<endl;
+			sleep(3);
+			fun(head->bucketNum);
 
-	if(head->left == NULL || head ->right == NULL)
 			return head->bucketNum;
+	}
 	if(head->flag == 0){
 
 		if(x<=head->cond){
-			return query1(head->left,x,y);
+			return query1(head->left,x,y,fun);
 		}else{
-		    return query1(head->right,x,y);
+		    return query1(head->right,x,y, fun);
 		}
 
 	}
 	else{
 
 		if(y<=head->cond){
-			return query1(head->left,x,y);
+			return query1(head->left,x,y, fun);
 		}else{
-		    return query1(head->right,x,y);
+		    return query1(head->right,x,y, fun);
 		}
 	}
 }
@@ -242,23 +247,47 @@ void query2(node* head,int x1,int y1,int x2,int y2){
 	return 0;
 }*/
 
-//typedef boost::packaged_task<int> task_t;
-//typedef boost::shared_ptr<task_t> ptask_t;
+typedef boost::packaged_task<int> task_t;
+typedef boost::shared_ptr<task_t> ptask_t;
 
-void increment_count(int seconds)
-{
-	//boost::unique_lock<boost::mutex> lock(mutex1);
-	std::cout << "count+++++"<<seconds<< std::endl;
+void callbackFun(int x){
+	std::ofstream out("output.txt", std::ofstream::out | std::ofstream::app);
+	std::ostringstream oss;
+	oss << "bucket number:" << x<<endl;
+	//std::cout << oss.str();
+	out << oss.str();
+
+
 }
 
-void push_job(int seconds, boost::asio::io_service& io_service, std::vector<boost::shared_future<int> >& pending_data) {
-	/*ptask_t task = boost::make_shared<task_t>(boost::bind(&sleep_print, seconds));
+int increment_count(int seconds, void (*fun)(int))
+{
+	boost::shared_lock<boost::shared_mutex> lock(mutex1);
+	std::cout << "count+++++"<<seconds<< std::endl;
+	sleep(5);
+	fun(seconds * 15);
+	return 67;
+}
+
+void push_job(int seconds, boost::asio::io_service& ioService, std::vector<boost::shared_future<int> >& pending_data) {
+	//boost::promise<std::string> promise;
+	//boost::unique_future<std::string> fut = promise.get_future();
+	ptask_t task = boost::make_shared<task_t>(boost::bind(&increment_count, seconds, &callbackFun));
 	boost::shared_future<int> fut(task->get_future());
 	pending_data.push_back(fut);
-	io_service.post(boost::bind(&task_t::operator(), task));*/
-	io_service.post(boost::bind(&increment_count, seconds));
-
+	ioService.post(boost::bind(&task_t::operator(), task));
 }
+
+void query_bucket(node* head,int x,int y, boost::asio::io_service& ioService, std::vector<boost::shared_future<int> >& pending_data) {
+	//boost::promise<std::string> promise;
+	//boost::unique_future<std::string> fut = promise.get_future();
+	cout<<"++++++++head"<<head<<endl;
+	ptask_t task = boost::make_shared<task_t>(boost::bind(&query1,head, x,y, &callbackFun));
+	boost::shared_future<int> fut(task->get_future());
+	pending_data.push_back(fut);
+	ioService.post(boost::bind(&task_t::operator(), task));
+}
+
 
 int main()
 {
@@ -278,15 +307,19 @@ int main()
 		{
 			threads.create_thread(boost::bind(static_cast<std::size_t(boost::asio::io_service::*)(void)>
 				(&boost::asio::io_service::run), &ioService));
-
-			/*threads.create_thread(&increment_count);
-			threads.add_thread(t);
-			cout<<"========"<<i<<"+++++++"<<threads.size()<<endl;
-			threads.join_all();*/
-
 		}
 
 	std::vector<boost::shared_future<int> > pending_data;
+
+	//push_job(3, ioService, pending_data);
+
+	//push_job(6, ioService, pending_data);
+
+	//boost::wait_for_all(pending_data.begin(), pending_data.end());
+	//for(std::vector<boost::shared_future<int> >::iterator it = pending_data.begin(); it != pending_data.end(); ++it) {
+		//cout<<"hello--------"<<endl;
+		//std::cout<<it->get()<<endl;
+	//}
 
 	int max_num;
 	node* head = new node();
@@ -299,15 +332,15 @@ int main()
 	cin>>max_num;
 	k = max_num;
 	ifstream fp;
-	fp.open("test1.txt");
+	fp.open("test.txt");
 	int i;
 	int x;
 	int y;
 	while(fp>>i>>x>>y)
 	{
 		cout<<"inserting == "<<i<<" "<<x<<" "<<y<<endl;
-		ioService.post(boost::bind(&insert, head, x, y, i));
-		//insert(head,x,y,i);
+		//ioService.post(boost::bind(&insert, head, x, y, i));
+		insert(head,x,y,i);
 		id_point_pair[i]=make_pair(x,y);
 	}
 
@@ -335,8 +368,10 @@ int main()
 			cin>>id;
 			int x = id_point_pair[id].first;
 			int y = id_point_pair[id].second;
-			ioService.post(boost::bind(&query1, head, x, y));
-			cout<<"Bucket num: dont know"<<endl;
+			query_bucket(head, x, y, ioService, pending_data);
+
+			//ioService.post(boost::bind(&query1, head, x, y));
+			cout<<"input processed"<<endl;
 
 
 			//cout<<"Bucket num: "<<query1(head,x,y)<<endl;
@@ -346,8 +381,8 @@ int main()
 			cout<<"Enter the xmin,ymin and xmax,ymax in which you need to find the points:";
 			int xmin,ymin,xmax,ymax;
 			cin>>xmin>>ymin>>xmax>>ymax;
-			ioService.post(boost::bind(&query2, head, xmin, ymin,xmax,ymax));
-			//query2(head,xmin,ymin,xmax,ymax);
+			//ioService.post(boost::bind(&query2, head, xmin, ymin,xmax,ymax));
+			query2(head,xmin,ymin,xmax,ymax);
 			cout<<"Points included are:"<<endl;
 			for(int i=0;i<answer.size();i++)
 			{
