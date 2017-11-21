@@ -1,0 +1,42 @@
+PROGRAM <Total Order>
+1. DECLARE double itemPrice, orderTotal ;
+2. SET orderTotal = 0.00 ;
+3. WHILE more items in order
+4. READ itemPrice ;
+5. SET orderTotal = orderTotal + itemPrice ;
+6. ENDWHILE
+7. DISPLAY orderTotal ;
+END
+2. Centigrade to Fahrenheit
+1. PROGRAM <CentigradeToFahrenheit >
+2. DECLARE double centigrade, fahrenheit ;
+3. SET centigrade = 0.00 ;
+4. WHILE centigrade <=20.00 ;
+5. SET fahrenheit = (centigrade * 1.80) + 32.00 ;
+6. DISPLAY fahrenheit ;
+7. SET centigrade = centigrade + 1.00 ;
+8. ENDWHILE
+END
+Page 2 of 3
+3. Truck Loading Calculations
+PROGRAM <LoadTruck>
+1. DECLARE integer numberOfBoxes ;
+2. DECLARE double totalWeight, payload, averageBoxWeight, boxWeight
+ heaviestBox ;
+3. CONSTANT integer capacity ;
+4. SET capacity = 200 ;
+5. SET numberOfBoxes = 0 ;
+6. SET totalWeight = 0.00 ;
+7. SET heaviestBox = 0.00 ;
+8. WHILE (more boxes on conveyor)
+9. SET payload = 0.00 ;
+10. READ boxWeight ;
+11. WHILE boxWeight + payload <= capacity
+12. Load box on truck ;
+13. SET payload = payload + boxWeight ;
+14. SET numberOfBoxes = numberOfBoxes + 1 ;
+15. SET totalWeight = totalWeight + boxWeight ;
+16. IF boxWeight > heaviestBox
+17. SET heaviestBox = boxWeight ;
+18. ENDIF
+19. READ b
