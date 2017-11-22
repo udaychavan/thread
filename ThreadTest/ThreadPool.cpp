@@ -10,9 +10,12 @@
 #include <stdio.h>
 #include <bits/stdc++.h>
 #include <string>
+#include "boost/thread/recursive_mutex.hpp"
 
 using namespace std;
+boost::mutex mutex_lock;
 boost::shared_mutex mutex1;
+boost::recursive_mutex rec_mutex;
 
 typedef struct node
 {
@@ -42,29 +45,40 @@ vector<point> answer;
 map<int,pair<int,int> > id_point_pair;
 
 void put(node*head ,int x ,int y,int id){
+
 	int bN = head->bucketNum;
 	point p;
 	p.x= x;
 	p.y= y;
 	p.id = id;
-	//todo - locking
 	buckets[bN].push_back(p);
 	//cout<<bN<<" "<<x<<" "<<y<<endl;
 }
 
 void breakNode(node* head,int x,int y,int id){
+	//boost::unique_lock<boost::shared_mutex> lock(mutex1);
 
   int bN = head->bucketNum;
-  cout<<bN<<" hello test"<<endl;
+  //cout<<"bucket number: "<<bN<<endl<<"breaking node:"<<endl;
+
+  //boost::unique_lock<boost::shared_mutex> lock(mutex1);
   head->num++;
   put(head,x,y,id);
+  //lock.unlock();
   if(head->flag == 0 ){
+
+	  //cout<<"head flag is 0"<<endl;
+	  //boost::shared_lock<boost::shared_mutex> lock1(mutex1);
+
   	int avgx =0;
   	for(int i=0;i<head->num;i++){
   		//avgx = (avgx*i + buckets[bN][i].x)/(i+1);
   		avgx +=buckets[bN][i].x;
   	}
   	avgx = avgx/head->num;
+  	//cout<<"avgx is :"<<avgx<<endl;
+
+  	//lock1.unlock();
   	head->cond = avgx;
   	head->left = new node();
   	head->right = new node();
@@ -80,26 +94,40 @@ void breakNode(node* head,int x,int y,int id){
   	head->right->num = 0;
   	head->left->flag = 1 - head->flag;
   	head->right->flag = 1 - head->flag;
+  	//boost::unique_lock<boost::shared_mutex> lock(mutex1);
+
   	for(int i=0;i<head->num;i++){
   		//cout<<avgx<<endl;
   		if(buckets[bN][i].x <= avgx){
+
   			buckets[bN][head->left->num] = buckets[bN][i];
   			head->left->num++;
   		}else{
   			//cout<<buckets.size()-1<<endl;
+
   			buckets[buckets.size()-1].push_back(buckets[bN][i]);
   			head->right->num++;
   			//cout<<"here";
   		}
   	}
+
   	buckets[bN].resize(head->left->num);
+  	//lock.unlock();
   }else{
+
+	  //cout<<"head flag is 1"<<endl;
+	  //boost::unique_lock<boost::shared_mutex> lock(mutex1);
+	  //boost::shared_lock<boost::shared_mutex> lock1(mutex1);
+
   	int avgy =0;
   	for(int i=0;i<head->num;i++){
   		//avgy = (avgy*i + buckets[bN][i].y)/(i+1);
   		avgy +=buckets[bN][i].y;
   	}
   	avgy = avgy/head->num;
+
+  	//cout<<"avgy is :"<<avgy<<endl;
+  	//lock1.unlock();
   	head->cond = avgy;
   	head->left = new node();
   	head->right = new node();
@@ -109,43 +137,63 @@ void breakNode(node* head,int x,int y,int id){
 	head->left->right  = NULL;
 	head->right->left = NULL;
 	head->right->right  = NULL;
+
+	//cout<<"original bucket split into 2 left and right"<<endl;
   	vector<point> empty;
 	buckets.push_back(empty);
   	head->left->num = 0;
   	head->right->num = 0;
   	head->left->flag = 1 - head->flag;
   	head->right->flag = 1 - head->flag;
+
+  	//cout<<"setup flags for both the buckets"<<endl;
+  	 //boost::unique_lock<boost::shared_mutex> lock(mutex1);
+
   	for(int i=0;i<head->num;i++){
   		//cout<<avgy<<endl;
   		if(buckets[bN][i].y <= avgy){
+
   			buckets[bN][head->left->num] = buckets[bN][i];
   			head->left->num++;
   		}else{
   			//cout<<buckets.size()-1<<endl;
+
   			buckets[buckets.size()-1].push_back(buckets[bN][i]);
   			head->right->num++;
   			//cout<<"here";
   		}
   	}
+
   	buckets[bN].resize(head->left->num);
+  	//lock.unlock();
   }
+
+  /*cout<<"breaking node output"<<endl;
+
+  for(int m=0; m< buckets.size(); m++)
+  		{
+  			cout<<"bucket=======>>>>"<<m<<endl;
+  			for(int n=0; n<buckets[m].size();n++)
+  			{
+  				cout<<"+++++++++++"<<buckets[m][n].x<<"++++======"<<buckets[m][n].y<<endl;
+  			}
+  		}*/
 }
 
 void insert(node* head,int x,int y,int id){
-	boost::unique_lock<boost::shared_mutex> lock(mutex1);
-	//cout<<head->num <<" -"<<endl;
-	if(head->num >= k){
-
-		if(head->left == NULL || head ->right == NULL){
-			cout<<head->num <<" --"<<endl;
+	//boost::lock_guard<boost::recursive_mutex> lock(rec_mutex);
+	//if(head->num >= k){
+		//boost::lock_guard<boost::recursive_mutex> lock(rec_mutex);
+		/*if(head->left == NULL || head ->right == NULL){
+			//cout<<head->num <<"calling breaknode"<<endl;
 			breakNode(head,x,y,id);
-			cout<<"afterbreaknode";
 			return;
-		}
-		else{
-			cout<<head->num <<" =-"<<endl;
-			cout<<head->flag<<endl;
-			if(head->flag == 0){
+		}*/
+		//else{
+			//boost::lock_guard<boost::recursive_mutex> lock(rec_mutex);
+			//cout<<head->num <<"traversing:"<<endl;
+			//cout<<head->flag<<endl;
+			/*if(head->flag == 0){
 				if(x <= head->cond){
 					insert(head->left,x,y,id);
 				}else{
@@ -157,22 +205,74 @@ void insert(node* head,int x,int y,int id){
 				}else{
 					insert(head->right,x,y,id);
 				}
-			}
+			}*/
+		//}
+		//cout<<"he"<<endl;
+		//node* test = NULL;
+		//boost::lock_guard<boost::recursive_mutex> lock(rec_mutex);
+	boost::unique_lock<boost::mutex> lock(mutex_lock);
+
+	//boost::shared_lock<boost::mutex> lock1(mutex_lock);
+		while(head->left!=NULL && head->right!=NULL){
+			//cout<<"hello";
+
+					/*if((head->flag == 0 && x <= head->cond) || (head->flag == 1  && y <= head->cond))
+						head = head->left;
+					else
+						head = head->right;
+					*/
+					if(head->flag == 0){
+							if(x <= head->cond){
+								head = head->left;
+							}else{
+								head = head->right;
+							}
+						}else{
+							if(y <= head->cond){
+								head = head->left;
+							}else{
+								head = head->right;
+							}
+						}
 		}
-	}
+		//lock.unlock();
+
+		//boost::unique_lock<boost::mutex> lock1(mutex_lock);
+		//boost::unique_lock<boost::mutex> lock(mutex_lock);
+
+		if(head->num >= k){
+
+		breakNode(head,x,y,id);
+		}
+		else{
+			//boost::lock_guard<boost::recursive_mutex> lock(rec_mutex);
+			head->num = head->num+1;
+			//lock.unlock();
+					put(head,x,y,id);
+		}
+
+
+
+	/*}
 	else{
-		cout<<"normal insert=="<<endl;
+		//boost::lock_guard<boost::recursive_mutex> lock(rec_mutex);
+		std::ostringstream oss;
+		oss << "bucket number:" <<head->bucketNum<<endl;
+		oss << "head number :"<<head->num<<endl;
+		oss <<	"head flag :"<<		head->flag<<endl;
+		std::string idAsString = oss.str();
+		//cout<<"normal insert=="<<endl<<idAsString<<endl;
 		head->num = head->num+1;
 		put(head,x,y,id);
-	}
+	}*/
 
 }
 
 int query1(node* head,int x,int y, void (*fun)(int)){
 	boost::shared_lock<boost::shared_mutex> lock(mutex1);
-	cout<<"+++++++++++"<<head->bucketNum<<endl;
+	//cout<<"+++++++++++"<<head->bucketNum<<endl;
 	if(head->left == NULL || head ->right == NULL){
-		cout<<"+++++++++++"<<head->bucketNum<<endl;
+		//cout<<"+++++++++++"<<head->bucketNum<<endl;
 			sleep(3);
 			fun(head->bucketNum);
 
@@ -235,7 +335,6 @@ void query2(node* head,int x1,int y1,int x2,int y2){
 			     query2(head->right,x1,y1,x2,y2);
 			}
 		}
-
 	}
 
 }
@@ -254,6 +353,8 @@ void callbackFun(int x){
 	std::ofstream out("output.txt", std::ofstream::out | std::ofstream::app);
 	std::ostringstream oss;
 	oss << "bucket number:" << x<<endl;
+
+
 	//std::cout << oss.str();
 	out << oss.str();
 
@@ -269,19 +370,19 @@ int increment_count(int seconds, void (*fun)(int))
 	return 67;
 }
 
-void push_job(int seconds, boost::asio::io_service& ioService, std::vector<boost::shared_future<int> >& pending_data) {
+void push_job(node* head, int x, int y, int i, boost::asio::io_service& ioService,
+		std::vector<boost::shared_future<int> >& search_pending_data) {
 	//boost::promise<std::string> promise;
 	//boost::unique_future<std::string> fut = promise.get_future();
-	ptask_t task = boost::make_shared<task_t>(boost::bind(&increment_count, seconds, &callbackFun));
+	//insert(head,x,y,i);
+	/*ptask_t task = boost::make_shared<task_t>(boost::bind(&insert, head, x, y, i));
+
 	boost::shared_future<int> fut(task->get_future());
-	pending_data.push_back(fut);
-	ioService.post(boost::bind(&task_t::operator(), task));
+	search_pending_data.push_back(fut);
+	ioService.post(boost::bind(&task_t::operator(), task));*/
 }
 
 void query_bucket(node* head,int x,int y, boost::asio::io_service& ioService, std::vector<boost::shared_future<int> >& pending_data) {
-	//boost::promise<std::string> promise;
-	//boost::unique_future<std::string> fut = promise.get_future();
-	cout<<"++++++++head"<<head<<endl;
 	ptask_t task = boost::make_shared<task_t>(boost::bind(&query1,head, x,y, &callbackFun));
 	boost::shared_future<int> fut(task->get_future());
 	pending_data.push_back(fut);
@@ -301,25 +402,27 @@ int main()
 	// vec.push_back(map_init);
 
 	boost::asio::io_service ioService;
-	boost::thread_group threads;
+	boost::thread_group reader_threads;
 	boost::asio::io_service::work work(ioService);
 	for (int i = 0; i < boost::thread::hardware_concurrency() ; ++i)
 		{
-			threads.create_thread(boost::bind(static_cast<std::size_t(boost::asio::io_service::*)(void)>
+			reader_threads.create_thread(boost::bind(static_cast<std::size_t(boost::asio::io_service::*)(void)>
 				(&boost::asio::io_service::run), &ioService));
 		}
 
 	std::vector<boost::shared_future<int> > pending_data;
 
-	//push_job(3, ioService, pending_data);
 
-	//push_job(6, ioService, pending_data);
+	boost::asio::io_service searchService;
+		boost::thread_group search_threads;
+		boost::asio::io_service::work searchWork(searchService);
+		for (int i = 0; i < 8 ; ++i)
+			{
+			search_threads.create_thread(boost::bind(static_cast<std::size_t(boost::asio::io_service::*)(void)>
+					(&boost::asio::io_service::run), &searchService));
+			}
 
-	//boost::wait_for_all(pending_data.begin(), pending_data.end());
-	//for(std::vector<boost::shared_future<int> >::iterator it = pending_data.begin(); it != pending_data.end(); ++it) {
-		//cout<<"hello--------"<<endl;
-		//std::cout<<it->get()<<endl;
-	//}
+		std::vector<boost::shared_future<int> > search_pending_data;
 
 	int max_num;
 	node* head = new node();
@@ -336,26 +439,51 @@ int main()
 	int i;
 	int x;
 	int y;
+	boost::posix_time::ptime t1 = boost::posix_time::microsec_clock::local_time();
 	while(fp>>i>>x>>y)
 	{
-		cout<<"inserting == "<<i<<" "<<x<<" "<<y<<endl;
-		//ioService.post(boost::bind(&insert, head, x, y, i));
-		insert(head,x,y,i);
+		searchService.post(boost::bind(&insert, head, x, y, i));
+		//cout<<"head:"<<head<<"bucketNum:"<<head->bucketNum<<"number"<<head->num<<endl;
+		//insert(head,x,y,i);
 		id_point_pair[i]=make_pair(x,y);
 	}
+	//search_threads.join_all();
+	//boost::wait_for_all(search_pending_data.begin(), search_pending_data.end());
+	//searchService.stop();
+	//
 
+	while(buckets.size() != 2149){
+		usleep(5);
+	}
+	boost::posix_time::ptime t2 = boost::posix_time::microsec_clock::local_time();
+		boost::posix_time::time_duration diff = t2 - t1;
+
+	std::cout << "time take in ms(threads):"<<diff.total_microseconds() << std::endl;
+		//searchService.stop();
+		std::cout << "asdlfjal:"<<diff.total_nanoseconds() << std::endl;
+		cout<<"------------"<<buckets.size()<<endl;
 	cout<<"------------"<<buckets.size()<<endl;
 
-	for(int m=0; m< buckets.size(); m++)
-	{
-		cout<<"=======>>>>"<<m<<endl;
-		for(int n=0; n<buckets[m].size();n++)
-		{
-			cout<<"+++++++++++"<<buckets[m][n].x<<"++++======"<<buckets[m][n].y<<endl;
-		}
-	}
+	sleep(10);
+	sleep(5);
+	std::cout << "time take in ms(threads):"<<diff.total_microseconds() << std::endl;
+		//searchService.stop();
+		std::cout << "asdlfjal:"<<diff.total_nanoseconds() << std::endl;
+		cout<<"------------"<<buckets.size()<<endl;
 
-	while(1)
+	/*for(int m=0; m< buckets.size(); m++)
+		{
+			cout<<"bucket=======>>>>"<<m<<endl;
+			for(int n=0; n<buckets[m].size();n++)
+			{
+				cout<<"+++++++++++"<<buckets[m][n].x<<"++++======"<<buckets[m][n].y<<"id"<<buckets[m][n].id<<endl;
+			}
+		}
+	*/
+
+
+
+	/*while(1)
 	{
 		answer.clear();
 		cout<<"Type 1 for search of point , Type 2 for search of all points in the rectangle , Anything else to exit :"<<endl;
@@ -393,7 +521,7 @@ int main()
 		{
 			return 0;
 		}
-	}
+	}*/
 
 	return 0;
 }
