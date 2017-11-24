@@ -201,7 +201,7 @@ void insert(node* head,int x,int y,int id){
 }
 
 int query1(node* head,int x,int y, void (*fun)(int) = NULL){
-	//boost::shared_lock<boost::shared_mutex> readlock(mutex1);
+	boost::shared_lock<boost::shared_mutex> readlock(mutex1);
 
 	if(head->left == NULL || head ->right == NULL){
 		cout<<"query read"<<endl;
