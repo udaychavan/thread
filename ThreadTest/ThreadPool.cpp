@@ -44,6 +44,8 @@ vector<point> answer;
 
 map<int,pair<int,int> > id_point_pair;
 
+
+
 void put(node*head ,int x ,int y,int id){
 
 	int bN = head->bucketNum;
@@ -198,13 +200,18 @@ void insert(node* head,int x,int y,int id){
 	}
 }
 
-int query1(node* head,int x,int y, void (*fun)(int)){
-	boost::shared_lock<boost::shared_mutex> readlock(mutex1);
+int query1(node* head,int x,int y, void (*fun)(int) = NULL){
+	//boost::shared_lock<boost::shared_mutex> readlock(mutex1);
+
 	if(head->left == NULL || head ->right == NULL){
-			fun(head->bucketNum);
+		cout<<"query read"<<endl;
+
+		//fun(head->bucketNum);
 			return head->bucketNum;
 	}
 	if(head->flag == 0){
+		cout<<"query read0"<<endl;
+
 		if(x<=head->cond){
 			return query1(head->left,x,y,fun);
 		}else{
@@ -213,6 +220,8 @@ int query1(node* head,int x,int y, void (*fun)(int)){
 
 	}
 	else{
+		cout<<"query read1"<<endl;
+
 		if(y<=head->cond){
 			return query1(head->left,x,y, fun);
 		}else{
@@ -302,6 +311,47 @@ void query_bucket(node* head,int x,int y, boost::asio::io_service& ioService, st
 	ioService.post(boost::bind(&task_t::operator(), task));
 }
 
+void readInput(node * head){
+	boost::asio::io_service readerService;
+	boost::thread_group reader_threads;
+	boost::asio::io_service::work work(readerService);
+		for (int i = 0; i < boost::thread::hardware_concurrency() ; ++i)
+			{
+				reader_threads.create_thread(boost::bind(static_cast<std::size_t(boost::asio::io_service::*)(void)>
+					(&boost::asio::io_service::run), &readerService));
+			}
+
+		std::vector<boost::shared_future<int> > pending_data;
+
+		//int max_num;
+		//node* head = new node();
+		head->left = NULL;
+		head->right  = NULL;
+		head->num =0;
+		head->flag = 1;
+		head->bucketNum = 0;
+		//cout<<"Enter the max number of points in a bucket:"<<endl;
+		//cin>>max_num;
+		k = 20;
+		ifstream fp;
+		fp.open("test.txt");
+		int i;
+		int x;
+		int y;
+		//boost::posix_time::ptime t1 = boost::posix_time::microsec_clock::local_time();
+		while(fp>>i>>x>>y)
+		{
+			readerService.post(boost::bind(&insert, head, x, y, i));
+			//insert(head,x,y,i);
+			usleep(50);
+			id_point_pair[i]=make_pair(x,y);
+		}
+
+
+		sleep(30);
+
+}
+
 
 int main()
 {
@@ -325,8 +375,13 @@ int main()
 
 	std::vector<boost::shared_future<int> > pending_data;
 
-
-	boost::asio::io_service searchService;
+	node* head = new node();
+		head->left = NULL;
+		head->right  = NULL;
+		head->num =0;
+		head->flag = 1;
+		head->bucketNum = 0;
+	/*boost::asio::io_service searchService;
 		boost::thread_group search_threads;
 		boost::asio::io_service::work searchWork(searchService);
 		for (int i = 0; i < 20 ; ++i)
@@ -359,11 +414,25 @@ int main()
 		//usleep(10);
 		//insert(head,x,y,i);
 		id_point_pair[i]=make_pair(x,y);
-	}
+	}*/
+
+
 	//search_threads.join_all();
 	//boost::wait_for_all(search_pending_data.begin(), search_pending_data.end());
 	//searchService.stop();
 	//
+	boost::thread t(boost::bind(&readInput, head));
+
+	//boost::asio::io_service readerService;
+	//boost::thread_group readerThread;
+	//boost::asio::io_service::work readWork(readerService);
+	//readerThread.create_thread( boost::bind( &readInput, readerService));
+
+
+
+	boost::posix_time::ptime t1 = boost::posix_time::microsec_clock::local_time();
+
+	std::cout<<"readInput()"<<endl;
 
 	/*while(buckets.size() != 2149){
 		usleep(5);
@@ -377,7 +446,7 @@ int main()
 		cout<<"------------"<<buckets.size()<<endl;
 	cout<<"------------"<<buckets.size()<<endl;
 
-	sleep(60);
+	//sleep(60);
 	std::cout << "time take in ms(threads):"<<diff.total_microseconds() << std::endl;
 		//searchService.stop();
 		std::cout << "asdlfjal:"<<diff.total_nanoseconds() << std::endl;
@@ -398,7 +467,7 @@ int main()
 
 
 
-	/*while(1)
+	while(1)
 	{
 		answer.clear();
 		cout<<"Type 1 for search of point , Type 2 for search of all points in the rectangle , Anything else to exit :"<<endl;
@@ -411,13 +480,13 @@ int main()
 			cin>>id;
 			int x = id_point_pair[id].first;
 			int y = id_point_pair[id].second;
-			query_bucket(head, x, y, ioService, pending_data);
+			//query_bucket(head, x, y, ioService, pending_data);
 
 			//ioService.post(boost::bind(&query1, head, x, y));
-			cout<<"input processed"<<endl;
+			//cout<<"input processed"<<endl;
 
 
-			//cout<<"Bucket num: "<<query1(head,x,y)<<endl;
+			cout<<"Bucket num: "<<query1(head,x,y)<<endl;
 		}
 		else if(val==2)
 		{
@@ -432,11 +501,15 @@ int main()
 				cout<<answer[i].id<<" "<<answer[i].x<<" "<<answer[i].y<<endl;
 			}
 		}
+		else if(val==3)
+		{
+			cout<<"------------"<<buckets.size()<<endl;
+		}
 		else
 		{
 			return 0;
 		}
-	}*/
+	}
 
 	return 0;
 }
