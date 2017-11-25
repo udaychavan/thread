@@ -207,13 +207,13 @@ int query1(node* head,int x,int y, void (*fun)(int) = NULL){
 	boost::shared_lock<boost::shared_mutex> readlock(mutex1);
 
 	if(head->left == NULL || head ->right == NULL){
-		cout<<"query read"<<endl;
+//		cout<<"query read"<<endl;
 
 		//fun(head->bucketNum);
 			return head->bucketNum;
 	}
 	if(head->flag == 0){
-		cout<<"query read0"<<endl;
+//		cout<<"query read0"<<endl;
 
 		if(x<=head->cond){
 			return query1(head->left,x,y,fun);
@@ -223,7 +223,7 @@ int query1(node* head,int x,int y, void (*fun)(int) = NULL){
 
 	}
 	else{
-		cout<<"query read1"<<endl;
+//		cout<<"query read1"<<endl;
 
 		if(y<=head->cond){
 			return query1(head->left,x,y, fun);
@@ -245,8 +245,6 @@ void addValidPoints(node* head,int x1,int y1,int x2,int y2, vector<point>* answe
   		}
   	}
 }
-
-
 
 void query2(node* head,int x1,int y1,int x2,int y2, vector<point>* answer){
 	boost::shared_lock<boost::shared_mutex> readlock(mutex1);
@@ -276,8 +274,6 @@ void query2(node* head,int x1,int y1,int x2,int y2, vector<point>* answer){
 	}
 
 }
-
-
 
 int findPointsInRange(node* head, int xmin, int ymin, int xmax, int ymax){
 	vector<point>* answer = new vector<point>();
@@ -316,6 +312,40 @@ int findPointsInRange(node* head, int xmin, int ymin, int xmax, int ymax){
 
 }
 
+int findBucketOfPoint(node* head,int x,int y){
+	std::stringstream ss;
+	ss << "Bucket num for (" << x <<", "<< y <<") :";
+	std::string s = ss.str();
+	std::ofstream out("output.txt", std::ofstream::out | std::ofstream::app);
+	std::ostringstream oss;
+	oss<<s<<query1(head,x,y)<<endl;
+	out<< oss.str();
+	return 0;
+}
+
+void postPointQuery(node* head, boost::asio::io_service& searchService,
+		std::vector<boost::shared_future<int> >& search_pending_data){
+
+//	cout<<"Enter the point ID present in the database:"<<endl;
+//	int id;
+//	cin>>id;
+//	int x = id_point_pair[id].first;
+//	int y = id_point_pair[id].second;
+//	cout<<"Bucket num: "<<query1(head,x,y)<<endl;
+
+	ifstream fp;
+	fp.open("pointQuery.txt");
+	int x, y;
+	while(fp>>x>>y)
+	{
+		ptask_t task = boost::make_shared<task_t>(boost::bind(&findBucketOfPoint, head, x, y));
+		boost::shared_future<int> fut(task->get_future());
+		search_pending_data.push_back(fut);
+		searchService.post(boost::bind(&task_t::operator(), task));
+		usleep(50);
+	}
+
+}
 
 void postRangeQuery(node* head, boost::asio::io_service& searchService,
 		std::vector<boost::shared_future<int> >& search_pending_data){
@@ -347,18 +377,6 @@ void callbackFun(int x){
 	out << oss.str();
 }
 
-
-void push_job(node* head, int x, int y, int i, boost::asio::io_service& ioService,
-		std::vector<boost::shared_future<int> >& search_pending_data) {
-	//boost::promise<std::string> promise;
-	//boost::unique_future<std::string> fut = promise.get_future();
-	//insert(head,x,y,i);
-	/*ptask_t task = boost::make_shared<task_t>(boost::bind(&insert, head, x, y, i));
-
-	boost::shared_future<int> fut(task->get_future());
-	search_pending_data.push_back(fut);
-	ioService.post(boost::bind(&task_t::operator(), task));*/
-}
 
 void query_bucket(node* head,int x,int y, boost::asio::io_service& ioService, std::vector<boost::shared_future<int> >& pending_data) {
 	ptask_t task = boost::make_shared<task_t>(boost::bind(&query1,head, x,y, &callbackFun));
@@ -401,8 +419,19 @@ void readInput(node * head){
 		id_point_pair[i]=make_pair(x,y);
 	}
 
+	cout<<"exiting???- read input"<<endl;
+	reader_threads.join_all();
+	//sleep(30);
 
-	sleep(30);
+}
+boost::asio::io_service searchService;
+std::vector<boost::shared_future<int> > search_pending_data;
+
+void searchPointBucket(node* head){
+
+	postPointQuery(head, searchService, search_pending_data);
+
+	cout<<"still running??"<<endl;
 
 }
 
@@ -458,7 +487,9 @@ int main()
 	head->flag = 1;
 	head->bucketNum = 0;
 
-	boost::thread t(boost::bind(&readInput, head));
+	boost::thread readThread(boost::bind(&readInput, head));
+	boost::thread* pointSearch;
+	//boost::thread pointSearch;
 
 	/*while(buckets.size() != 2149){
 		usleep(5);
@@ -485,7 +516,7 @@ int main()
 		}
 	*/
 
-	boost::asio::io_service searchService;
+	//boost::asio::io_service searchService;
 	boost::thread_group search_threads;
 	boost::asio::io_service::work work(searchService);
 	for (int i = 0; i < boost::thread::hardware_concurrency() ; ++i)
@@ -494,7 +525,7 @@ int main()
 				(&boost::asio::io_service::run), &searchService));
 		}
 
-	std::vector<boost::shared_future<int> > search_pending_data;
+	//std::vector<boost::shared_future<int> > search_pending_data;
 
 	while(1)
 	{
@@ -504,18 +535,22 @@ int main()
 		cin>>val;
 		if(val==1)
 		{
-			cout<<"Enter the point ID present in the database:"<<endl;
-			int id;
-			cin>>id;
-			int x = id_point_pair[id].first;
-			int y = id_point_pair[id].second;
-			//query_bucket(head, x, y, ioService, pending_data);
+//			cout<<"Enter the point ID present in the database:"<<endl;
+//			int id;
+//			cin>>id;
+//			int x = id_point_pair[id].first;
+//			int y = id_point_pair[id].second;
+//			//query_bucket(head, x, y, ioService, pending_data);
+
+			pointSearch = new boost::thread(boost::bind(&searchPointBucket, head));
+
+			//postPointQuery(head, searchService, search_pending_data);
 
 			//ioService.post(boost::bind(&query1, head, x, y));
 			//cout<<"input processed"<<endl;
 
 
-			cout<<"Bucket num: "<<query1(head,x,y)<<endl;
+			//cout<<"Bucket num: "<<query1(head,x,y)<<endl;
 		}
 		else if(val==2)
 		{
@@ -529,8 +564,8 @@ int main()
 			//ioService.post(boost::bind(&findPointsInRange, head));
 			//query2(head,xmin,ymin,xmax,ymax, answer);
 
-			sleep(40);
-			cout<<"Points included are:"<<endl;
+			//sleep(40);
+			//cout<<"Points included are:"<<endl;
 
 			/*vector<point>::iterator it;
 			for(it = answer->begin() ; it != answer->end() ; ++it)
@@ -548,9 +583,18 @@ int main()
 		}
 		else
 		{
+			cout<<"exiting???"<<endl;
+			readThread.join();
+			search_threads.join_all();
+
 			return 0;
 		}
 	}
+
+	//cout<<"exiting???======="<<endl;
+	readThread.join();
+	pointSearch->join();
+
 
 	return 0;
 }
