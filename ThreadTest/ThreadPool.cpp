@@ -16,6 +16,9 @@ using namespace std;
 boost::mutex mutex_no,mutex_left;
 boost::shared_mutex mutex1;
 boost::recursive_mutex mutex_lock;
+typedef boost::packaged_task<int> task_t;
+typedef boost::shared_ptr<task_t> ptask_t;
+
 
 typedef struct node
 {
@@ -243,6 +246,8 @@ void addValidPoints(node* head,int x1,int y1,int x2,int y2, vector<point>* answe
   	}
 }
 
+
+
 void query2(node* head,int x1,int y1,int x2,int y2, vector<point>* answer){
 	boost::shared_lock<boost::shared_mutex> readlock(mutex1);
 	if(head->left == NULL || head ->right == NULL){
@@ -272,8 +277,67 @@ void query2(node* head,int x1,int y1,int x2,int y2, vector<point>* answer){
 
 }
 
-typedef boost::packaged_task<int> task_t;
-typedef boost::shared_ptr<task_t> ptask_t;
+
+
+int findPointsInRange(node* head, int xmin, int ymin, int xmax, int ymax){
+	vector<point>* answer = new vector<point>();
+	//cout<<"Enter the xmin,ymin and xmax,ymax in which you need to find the points:";
+	//int xmin,ymin,xmax,ymax;
+	//cin>>xmin>>ymin>>xmax>>ymax;
+	//cout<<"hello uday"<<head<<endl;
+	//ioService.post(boost::bind(&query2, head, xmin, ymin,xmax,ymax));
+	query2(head,xmin,ymin,xmax,ymax, answer);
+	/*vector<point>::iterator it;
+	for(it = answer->begin() ; it != answer->end() ; ++it)
+	{
+		cout<<it->id<<" "<<it->x<<" "<<it->y<<endl;
+	}
+
+	cout<<"hello what happned??"<<endl;
+	*/
+	std::stringstream ss;
+	ss << "output_" << xmin <<"_"<< ymin <<"_"<< xmax <<"_"<< ymax <<"_"<< ".txt";
+	std::string s = ss.str();
+
+	std::ofstream out(s, std::ofstream::out | std::ofstream::app);
+	std::ostringstream oss;
+	oss << "points in the range are:"<<endl;
+	vector<point>::iterator it;
+		for(it = answer->begin() ; it != answer->end() ; ++it)
+		{
+			//cout<<it->id<<" "<<it->x<<" "<<it->y<<endl;
+			oss <<it->id<<" "<<it->x<<" "<<it->y<<endl;
+
+		}
+	//std::cout << oss.str();
+	out << oss.str();
+
+	return 1;
+
+}
+
+
+void postRangeQuery(node* head, boost::asio::io_service& searchService,
+		std::vector<boost::shared_future<int> >& search_pending_data){
+
+		/*cout<<"Enter the xmin,ymin and xmax,ymax in which you need to find the points:";
+		int xmin,ymin,xmax,ymax;
+		cin>>xmin>>ymin>>xmax>>ymax;
+		cout<<"hello uday"<<head<<endl;*/
+
+		ifstream fp;
+		fp.open("rangeQuery.txt");
+		int xmin, ymin, xmax, ymax;
+		while(fp>>xmin>>ymin>>xmax>>ymax)
+		{
+			ptask_t task = boost::make_shared<task_t>(boost::bind(&findPointsInRange, head, xmin,ymin,xmax,ymax));
+			boost::shared_future<int> fut(task->get_future());
+			search_pending_data.push_back(fut);
+			searchService.post(boost::bind(&task_t::operator(), task));
+			usleep(50);
+		}
+
+}
 
 void callbackFun(int x){
 	std::ofstream out("output.txt", std::ofstream::out | std::ofstream::app);
@@ -283,14 +347,6 @@ void callbackFun(int x){
 	out << oss.str();
 }
 
-int increment_count(int seconds, void (*fun)(int))
-{
-	boost::shared_lock<boost::shared_mutex> lock(mutex1);
-	std::cout << "count+++++"<<seconds<< std::endl;
-	sleep(5);
-	fun(seconds * 15);
-	return 67;
-}
 
 void push_job(node* head, int x, int y, int i, boost::asio::io_service& ioService,
 		std::vector<boost::shared_future<int> >& search_pending_data) {
@@ -315,40 +371,38 @@ void readInput(node * head){
 	boost::asio::io_service readerService;
 	boost::thread_group reader_threads;
 	boost::asio::io_service::work work(readerService);
-		for (int i = 0; i < boost::thread::hardware_concurrency() ; ++i)
-			{
-				reader_threads.create_thread(boost::bind(static_cast<std::size_t(boost::asio::io_service::*)(void)>
-					(&boost::asio::io_service::run), &readerService));
-			}
-
-		std::vector<boost::shared_future<int> > pending_data;
-
-		//int max_num;
-		//node* head = new node();
-		head->left = NULL;
-		head->right  = NULL;
-		head->num =0;
-		head->flag = 1;
-		head->bucketNum = 0;
-		//cout<<"Enter the max number of points in a bucket:"<<endl;
-		//cin>>max_num;
-		k = 20;
-		ifstream fp;
-		fp.open("test.txt");
-		int i;
-		int x;
-		int y;
-		//boost::posix_time::ptime t1 = boost::posix_time::microsec_clock::local_time();
-		while(fp>>i>>x>>y)
+	for (int i = 0; i < boost::thread::hardware_concurrency() ; ++i)
 		{
-			readerService.post(boost::bind(&insert, head, x, y, i));
-			//insert(head,x,y,i);
-			usleep(50);
-			id_point_pair[i]=make_pair(x,y);
+			reader_threads.create_thread(boost::bind(static_cast<std::size_t(boost::asio::io_service::*)(void)>
+				(&boost::asio::io_service::run), &readerService));
 		}
 
+	std::vector<boost::shared_future<int> > pending_data;
 
-		sleep(30);
+	head->left = NULL;
+	head->right  = NULL;
+	head->num =0;
+	head->flag = 1;
+	head->bucketNum = 0;
+	//cout<<"Enter the max number of points in a bucket:"<<endl;
+	//cin>>max_num;
+	k = 20;
+	ifstream fp;
+	fp.open("test.txt");
+	int i;
+	int x;
+	int y;
+	//boost::posix_time::ptime t1 = boost::posix_time::microsec_clock::local_time();
+	while(fp>>i>>x>>y)
+	{
+		readerService.post(boost::bind(&insert, head, x, y, i));
+		//insert(head,x,y,i);
+		usleep(50);
+		id_point_pair[i]=make_pair(x,y);
+	}
+
+
+	sleep(30);
 
 }
 
@@ -359,40 +413,9 @@ int main()
 	buckets.clear();
 	vector<point> empty;
 	buckets.push_back(empty);
-	// int numBucket=1;
-	// map<int,pair<int,int> > map_init;
-	// map_init.clear();
-	// vec.push_back(map_init);
 
-	boost::asio::io_service ioService;
-	boost::thread_group reader_threads;
-	boost::asio::io_service::work work(ioService);
-	for (int i = 0; i < boost::thread::hardware_concurrency() ; ++i)
-		{
-			reader_threads.create_thread(boost::bind(static_cast<std::size_t(boost::asio::io_service::*)(void)>
-				(&boost::asio::io_service::run), &ioService));
-		}
-
-	std::vector<boost::shared_future<int> > pending_data;
-
-	node* head = new node();
-		head->left = NULL;
-		head->right  = NULL;
-		head->num =0;
-		head->flag = 1;
-		head->bucketNum = 0;
-	/*boost::asio::io_service searchService;
-		boost::thread_group search_threads;
-		boost::asio::io_service::work searchWork(searchService);
-		for (int i = 0; i < 20 ; ++i)
-			{
-			search_threads.create_thread(boost::bind(static_cast<std::size_t(boost::asio::io_service::*)(void)>
-					(&boost::asio::io_service::run), &searchService));
-			}
-
-		std::vector<boost::shared_future<int> > search_pending_data;
-
-	int max_num;
+	boost::posix_time::ptime t1 = boost::posix_time::microsec_clock::local_time();
+	/*int max_num;
 	node* head = new node();
 	head->left = NULL;
 	head->right  = NULL;
@@ -407,52 +430,49 @@ int main()
 	int i;
 	int x;
 	int y;
-	boost::posix_time::ptime t1 = boost::posix_time::microsec_clock::local_time();
+	//boost::posix_time::ptime t1 = boost::posix_time::microsec_clock::local_time();
 	while(fp>>i>>x>>y)
 	{
-		searchService.post(boost::bind(&insert, head, x, y, i));
+		//searchService.post(boost::bind(&insert, head, x, y, i));
 		//usleep(10);
-		//insert(head,x,y,i);
+		insert(head,x,y,i);
 		id_point_pair[i]=make_pair(x,y);
 	}*/
-
 
 	//search_threads.join_all();
 	//boost::wait_for_all(search_pending_data.begin(), search_pending_data.end());
 	//searchService.stop();
-	//
-	boost::thread t(boost::bind(&readInput, head));
 
 	//boost::asio::io_service readerService;
 	//boost::thread_group readerThread;
 	//boost::asio::io_service::work readWork(readerService);
 	//readerThread.create_thread( boost::bind( &readInput, readerService));
 
-
-
-	boost::posix_time::ptime t1 = boost::posix_time::microsec_clock::local_time();
+	//boost::posix_time::ptime t1 = boost::posix_time::microsec_clock::local_time();
 
 	std::cout<<"readInput()"<<endl;
+	node* head = new node();
+	head->left = NULL;
+	head->right  = NULL;
+	head->num =0;
+	head->flag = 1;
+	head->bucketNum = 0;
+
+	boost::thread t(boost::bind(&readInput, head));
 
 	/*while(buckets.size() != 2149){
 		usleep(5);
 	}*/
 	boost::posix_time::ptime t2 = boost::posix_time::microsec_clock::local_time();
-		boost::posix_time::time_duration diff = t2 - t1;
+	boost::posix_time::time_duration diff = t2 - t1;
 
 	std::cout << "time take in ms(threads):"<<diff.total_microseconds() << std::endl;
-		//searchService.stop();
-		std::cout << "asdlfjal:"<<diff.total_nanoseconds() << std::endl;
-		cout<<"------------"<<buckets.size()<<endl;
+	std::cout << "asdlfjal:"<<diff.total_nanoseconds() << std::endl;
 	cout<<"------------"<<buckets.size()<<endl;
 
-	//sleep(60);
 	std::cout << "time take in ms(threads):"<<diff.total_microseconds() << std::endl;
-		//searchService.stop();
-		std::cout << "asdlfjal:"<<diff.total_nanoseconds() << std::endl;
-		cout<<"------------"<<buckets.size()<<endl;
-
-
+	std::cout << "asdlfjal:"<<diff.total_nanoseconds() << std::endl;
+	cout<<"------------"<<buckets.size()<<endl;
 
 
 	/*for(int m=0; m< buckets.size(); m++)
@@ -465,7 +485,16 @@ int main()
 		}
 	*/
 
+	boost::asio::io_service searchService;
+	boost::thread_group search_threads;
+	boost::asio::io_service::work work(searchService);
+	for (int i = 0; i < boost::thread::hardware_concurrency() ; ++i)
+		{
+			search_threads.create_thread(boost::bind(static_cast<std::size_t(boost::asio::io_service::*)(void)>
+				(&boost::asio::io_service::run), &searchService));
+		}
 
+	std::vector<boost::shared_future<int> > search_pending_data;
 
 	while(1)
 	{
@@ -490,19 +519,24 @@ int main()
 		}
 		else if(val==2)
 		{
-			vector<point>* answer = new vector<point>();
-			cout<<"Enter the xmin,ymin and xmax,ymax in which you need to find the points:";
-			int xmin,ymin,xmax,ymax;
-			cin>>xmin>>ymin>>xmax>>ymax;
+			//vector<point>* answer = new vector<point>();
+			//cout<<"Enter the xmin,ymin and xmax,ymax in which you need to find the points:";
+			//int xmin,ymin,xmax,ymax;
+			//cin>>xmin>>ymin>>xmax>>ymax;
 			//ioService.post(boost::bind(&query2, head, xmin, ymin,xmax,ymax));
-			query2(head,xmin,ymin,xmax,ymax, answer);
+			postRangeQuery(head, searchService, search_pending_data);
+			//boost::thread t(boost::bind(&findPointsInRange, head));
+			//ioService.post(boost::bind(&findPointsInRange, head));
+			//query2(head,xmin,ymin,xmax,ymax, answer);
+
+			sleep(40);
 			cout<<"Points included are:"<<endl;
 
-			vector<point>::iterator it;
+			/*vector<point>::iterator it;
 			for(it = answer->begin() ; it != answer->end() ; ++it)
 			{
 				cout<<it->id<<" "<<it->x<<" "<<it->y<<endl;
-			}
+			}*/
 			/*for(int i=0;i<answer.size();i++)
 			{
 				cout<<answer[i].id<<" "<<answer[i].x<<" "<<answer[i].y<<endl;
