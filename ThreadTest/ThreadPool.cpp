@@ -240,7 +240,7 @@ int findPointsInRange(node* head, int xmin, int ymin, int xmax, int ymax){
 	ss << "range_output/output_" << xmin <<"_"<< ymin <<"_"<< xmax <<"_"<< ymax <<"_"<< ".txt";
 	std::string filename = ss.str();
 
-	std::ofstream out(filename, std::ofstream::out | std::ofstream::app);
+	std::ofstream out(filename.c_str(), std::ofstream::out | std::ofstream::app);
 	std::ostringstream oss;
 	oss << "points in the range are:"<<endl;
 	vector<point>::iterator it;
