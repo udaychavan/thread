@@ -40,7 +40,7 @@ int k;
 
 vector<vector<point> > buckets;
 
-vector<point> answer;
+//vector<point> answer;
 
 map<int,pair<int,int> > id_point_pair;
 
@@ -230,7 +230,7 @@ int query1(node* head,int x,int y, void (*fun)(int) = NULL){
 	}
 }
 
-void addValidPoints(node* head,int x1,int y1,int x2,int y2)
+void addValidPoints(node* head,int x1,int y1,int x2,int y2, vector<point>* answer)
 {
 	int bN = head->bucketNum;
 	int size = buckets[bN].size();
@@ -238,34 +238,34 @@ void addValidPoints(node* head,int x1,int y1,int x2,int y2)
   		//cout<<buckets[bN][i].x<<" "<<buckets[bN][i].y<<endl;
   		if(buckets[bN][i].x>=x1 && buckets[bN][i].x<x2 && buckets[bN][i].y>=y1 && buckets[bN][i].y<y2)
   		{
-  			answer.push_back(buckets[bN][i]);
+  			answer->push_back(buckets[bN][i]);
   		}
   	}
 }
 
-void query2(node* head,int x1,int y1,int x2,int y2){
+void query2(node* head,int x1,int y1,int x2,int y2, vector<point>* answer){
 	boost::shared_lock<boost::shared_mutex> readlock(mutex1);
 	if(head->left == NULL || head ->right == NULL){
-		addValidPoints(head,x1,y1,x2,y2);
+		addValidPoints(head,x1,y1,x2,y2, answer);
 	}
 	else{
 		if(head->flag == 0){
 
 			if(x1<=head->cond){
-				 query2(head->left,x1,y1,x2,y2);
+				 query2(head->left,x1,y1,x2,y2, answer);
 			}
 			if(x2>head->cond){
-			     query2(head->right,x1,y1,x2,y2);
+			     query2(head->right,x1,y1,x2,y2, answer);
 			}
 
 		}
 		else{
 
 			if(y1<=head->cond){
-				 query2(head->left,x1,y1,x2,y2);
+				 query2(head->left,x1,y1,x2,y2, answer);
 			}
 			if(y2>head->cond){
-			     query2(head->right,x1,y1,x2,y2);
+			     query2(head->right,x1,y1,x2,y2, answer);
 			}
 		}
 	}
@@ -469,7 +469,7 @@ int main()
 
 	while(1)
 	{
-		answer.clear();
+		//answer.clear();
 		cout<<"Type 1 for search of point , Type 2 for search of all points in the rectangle , Anything else to exit :"<<endl;
 		int val;
 		cin>>val;
@@ -490,16 +490,23 @@ int main()
 		}
 		else if(val==2)
 		{
+			vector<point>* answer = new vector<point>();
 			cout<<"Enter the xmin,ymin and xmax,ymax in which you need to find the points:";
 			int xmin,ymin,xmax,ymax;
 			cin>>xmin>>ymin>>xmax>>ymax;
 			//ioService.post(boost::bind(&query2, head, xmin, ymin,xmax,ymax));
-			query2(head,xmin,ymin,xmax,ymax);
+			query2(head,xmin,ymin,xmax,ymax, answer);
 			cout<<"Points included are:"<<endl;
-			for(int i=0;i<answer.size();i++)
+
+			vector<point>::iterator it;
+			for(it = answer->begin() ; it != answer->end() ; ++it)
+			{
+				cout<<it->id<<" "<<it->x<<" "<<it->y<<endl;
+			}
+			/*for(int i=0;i<answer.size();i++)
 			{
 				cout<<answer[i].id<<" "<<answer[i].x<<" "<<answer[i].y<<endl;
-			}
+			}*/
 		}
 		else if(val==3)
 		{
